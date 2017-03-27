@@ -1,66 +1,39 @@
-var Kerberos  = require('kerberos').Kerberos;
-var kerberos = new Kerberos();
-var http = require('http');
+'use strict';
 
-function httpget(opts, callback) {
-	console.log('submitting to '+(opts.hostname||opts.host)+' with authorization header: '+(opts.headers||{}).authorization);
-	var req = http.get(opts, function(res) {
-		if (res.statusCode == 401) {
-			submitWithAuthorization(req, opts, callback);
-			return;
-		}
-		callback(res);
-	});
-	return req;
-}
+var express = require('express');
+// var expressKerberos = require('express-kerberos');
+var expressAuthNegotiate = require('express-auth-negotiate');
 
-function submitWithAuthorization(oldreq, opts, callback) {
-	kerberos.authGSSClientInit("HTTP@"+(opts.hostname || opts.host), 0, function(err, ctx) {
-		if (err) {
-			throw new Error(""+err);
-		}
-		console.log('done init '+ctx);
-		kerberos.authGSSClientStep(ctx, "", function (err) {
-			if (err) {
-				throw new Error(""+err);
-			}
-			console.log('done step '+ctx.response);
-			var headers = opts.headers || {};
-			headers.authorization = "Negotiate "+ctx.response;
-			opts.headers = headers;
-			var newreq = httpget(opts, callback);
+var app = express()
 
-			// tell oldReq "owner" about newReq. resubmit is an "unofficial" event
-			oldreq.emit('resubmit', newreq);
-			kerberos.authGSSClientClean(ctx, function(err) {
-				if (err) {
-					throw new Error(""+err);
-				}
-			});
-		});
-	});
-}
+var middleware = function(req, res, next) {
+    var auth = req.get('authorization');
+		console.log('me is middle', auth)
+    if (!auth) {
+      return res.status(401).set('WWW-Authenticate', 'Negotiate').end();
+    }
 
-// ///////////////////////////////////////////////////
+    if (auth.lastIndexOf('Negotiate') !== 0) {
+      return next(new Error(400, 'Malformed authentication token auth ' + auth));
+    }
 
-var options = {
-		hostname : "somehost.protected.by.spnego.example.com"
-		, path : "/"
-};
+    req.auth = req.auth || {};
+    req.auth.token = auth.substring('Negotiate '.length);
 
-var req = httpget(options, function(res) {
-	var body = '';
-	res.on('data', function(chunk) {
-		body += chunk;
-	});
-	res.on('end', function() {
-		console.log("BODY: "+body);
-	});
+    next();
+  };
+
+app.get('/testing', middleware, function(req, res, next) {
+	console.log('tesst 1')
+  res.send('Hello ' + req.auth.username);
 });
 
-req.on('resubmit', function(newreq) {
-	console.log('request resubmitted');
-	req = newreq;
+app.get('/tester', function(req, res) {
+	console.log('tesst 2');
+	res.send('hello2 ')
 });
 
-return;
+
+app.listen(8080, function () {
+  console.log('Example app listening on port!')
+})

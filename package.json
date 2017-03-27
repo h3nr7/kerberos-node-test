@@ -9,7 +9,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "express": "^4.15.2",
+    "express-auth-negotiate": "^0.2.0",
+    "express-kerberos": "^1.0.0",
     "http": "0.0.0",
-    "kerberos": "0.0.23"
+    "kerberos": "0.0.23",
+    "simple-kerberos": "^1.1.2"
   }
 }
